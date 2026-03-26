@@ -1,36 +1,21 @@
-import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
-import { AuthPayload } from '../../../shared/types';
+import { Router } from 'express';
+import { body } from 'express-validator';
+import { register, login, getMe } from '../controllers/authController';
+import { authenticate } from '../middleware/auth';
 
-export interface AuthRequest extends Request {
-  user?: AuthPayload;
-}
+const router = Router();
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret_change_me';
+router.post('/register', [
+  body('name').trim().notEmpty().withMessage('Name is required'),
+  body('email').isEmail().withMessage('Valid email required'),
+  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+], register);
 
-export const authenticate = (req: AuthRequest, res: Response, next: NextFunction): void => {
-  const authHeader = req.headers.authorization;
+router.post('/login', [
+  body('email').isEmail(),
+  body('password').notEmpty(),
+], login);
 
-  if (!authHeader?.startsWith('Bearer ')) {
-    res.status(401).json({ success: false, message: 'Missing or invalid authorization header' });
-    return;
-  }
+router.get('/me', authenticate, getMe);
 
-  const token = authHeader.split(' ')[1];
-
-  try {
-    const payload = jwt.verify(token, JWT_SECRET) as AuthPayload;
-    req.user = payload;
-    next();
-  } catch {
-    res.status(401).json({ success: false, message: 'Invalid or expired token' });
-  }
-};
-
-export const requireAdmin = (req: AuthRequest, res: Response, next: NextFunction): void => {
-  if (req.user?.role !== 'admin') {
-    res.status(403).json({ success: false, message: 'Admin access required' });
-    return;
-  }
-  next();
-};
+export default router;
